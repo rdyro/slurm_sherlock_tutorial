@@ -1,0 +1,363 @@
+\documentclass[10pt,mathserif, notes]{beamer}
+
+% Attribution: template taken from EE 364b at Stanford, 2018
+
+% include external libraries --------------------------------------------------
+\usepackage{graphicx, amsmath, amssymb, psfrag, fancyvrb, listings, amsfonts}
+\usepackage{algorithm, algpseudocode}
+\usepackage{animate, colortbl, tcolorbox, tikz, cancel, pgfpages, pifont}
+\usepackage{hyperref}
+\usepackage[outputdir=./build]{minted}
+
+\usepackage[absolute, overlay]{textpos}
+\setlength{\TPHorizModule}{1mm}
+\setlength{\TPVertModule}{1mm}
+\usepackage{caption}
+\captionsetup[figure]{font=footnotesize}
+% -----------------------------------------------------------------------------
+
+% define additional math symbols ----------------------------------------------
+\newcommand{\ones}{\mathbf 1}
+\newcommand{\reals}{{\mbox{\bf R}}}
+\newcommand{\integers}{{\mbox{\bf Z}}}
+\newcommand{\symm}{{\mbox{\bf S}}}  % symmetric matrices
+
+\newcommand{\nullspace}{{\mathcal N}}
+\newcommand{\range}{{\mathcal R}}
+\newcommand{\Rank}{\mathop{\bf Rank}}
+
+\newcommand{\Tr}{\mathop{\bf Tr}}
+\newcommand{\diag}{\mathop{\bf diag}}
+\newcommand{\card}{\mathop{\bf card}}
+\newcommand{\rank}{\mathop{\bf rank}}
+
+\newcommand{\conv}{\mathop{\bf conv}}
+\newcommand{\prox}{\mathbf{prox}}
+
+\newcommand{\Expect}{\mathop{\bf E{}}}
+\newcommand{\Prob}{\mathop{\bf Prob}}
+\newcommand{\Co}{{\mathop {\bf Co}}} % convex hull
+\newcommand{\dist}{\mathop{\bf dist{}}}
+\newcommand{\argmin}{\mathop{\rm argmin}}
+\newcommand{\argmax}{\mathop{\rm argmax}}
+\newcommand{\epi}{\mathop{\bf epi}} % epigraph
+\newcommand{\Vol}{\mathop{\bf vol}}
+\newcommand{\dom}{\mathop{\bf dom}} % domain
+\newcommand{\intr}{\mathop{\bf int}}
+\newcommand{\sign}{\mathop{\bf sign}}
+
+\newcommand{\cf}{{\it cf.}}
+\newcommand{\eg}{{\it e.g.}}
+\newcommand{\ie}{{\it i.e.}}
+\newcommand{\etc}{{\it etc.}}
+\newcommand{\cmark}{\ding{51}}
+\newcommand{\xmark}{\ding{55}}
+
+% -----------------------------------------------------------------------------
+
+\definecolor{mykeyword}{rgb}{0,0.6,0}
+\definecolor{mycomment}{rgb}{0,0.6,0.9}
+\definecolor{mynumber}{rgb}{0.5,0.5,0.5}
+\definecolor{mystring}{rgb}{1,0,0}
+
+% formatting ------------------------------------------------------------------
+\mode<presentation>{\usetheme{default}}
+\setbeamertemplate{navigation symbols}{}
+%\usecolortheme[rgb={0.55,0.08,0.08}]{structure}
+\usecolortheme[rgb={0.0,0.0,0.0}]{structure}
+\setbeamertemplate{itemize subitem}{--}
+\setbeamertemplate{frametitle} {
+  \begin{center}
+  {\LARGE\bf \insertframetitle}
+  \end{center}
+}
+
+\newcommand\footlineon{
+  \setbeamertemplate{footline} {
+    \begin{beamercolorbox}[ht=2.5ex,dp=1.125ex,leftskip=.8cm,rightskip=.6cm]{structure}
+    {\footnotesize \insertsection \text{\quad} \insertsubsection}
+    \hfill
+    {\insertframenumber/\inserttotalframenumber}
+    \end{beamercolorbox}
+    \vskip 0.45cm
+  }
+}
+\footlineon
+
+
+%\iffalse
+\AtBeginSection[] 
+{ 
+  \begin{frame}<beamer> 
+    \frametitle{Outline} 
+  \large
+  \tableofcontents[currentsection,currentsubsection] 
+    \end{frame} 
+} 
+%\fi
+
+%\setbeameroption{show notes on second screen=right}
+%\setbeamertemplate{note page}{\pagecolor{gray!30}\insertnote}
+
+\DeclareMathOperator*{\minimize}{minimize}
+\DeclareMathOperator*{\st}{subject\;to}
+\def\begm{\ensuremath\begin{bmatrix}}
+\def\endm{\ensuremath\end{bmatrix}}
+
+\setcounter{MaxMatrixCols}{20}
+
+\newcommand{\backupbegin}{
+   \newcounter{framenumberappendix}
+   \setcounter{framenumberappendix}{\value{framenumber}}
+}
+\newcommand{\backupend}{
+   \addtocounter{framenumberappendix}{-\value{framenumber}}
+   \addtocounter{framenumber}{\value{framenumberappendix}}
+}
+
+%\newcommand{\code}[1]{\tcbox[nobeforeafter, box align=base,size=fbox]{%
+%\texttt{#1}}%
+%}
+\newcommand{\code}[1]{\tcbox[nobeforeafter, box align=base,size=fbox]{%
+\mintinline{bash}{#1}}%
+}
+% -----------------------------------------------------------------------------
+
+%% begin presentation ---------------------------------------------------------
+\title{\LARGE \bfseries Slurm in 5 min.}
+
+\author{\large Robert Dyro\\Stanford ASL}
+
+\date{\today}
+
+
+\begin{document}
+
+\frame{
+  \thispagestyle{empty}
+  \titlepage
+}
+
+% ############################################################################ %
+\section{Introduction}
+
+% ---------------------------------------------------------------------------- %
+\begin{frame}[fragile]
+\frametitle{Introduction - Overview}
+\begin{itemize}
+\item a cluster allows to run independent processes across many computers
+\item many computers usually means 2 to 20
+\item by all means run your computation on only 1 computer if you want!
+\item processes are independent, can communicate over network
+\item usage through shell through \code{ssh}
+\item a cluster is managed by a cluster software - Slurm
+\item computers in the cluster communicate via network (sockets)
+\item storage is shared, all computers see the same files
+\item sharing storage is managed by the shared storage software 
+\item no \code{sudo}, install locally or load available packages
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Introduction - Terminology}
+\begin{itemize}
+\item \emph{a node} - a computer on the network managed by Slurm [-N]
+\item \emph{a task} - a single of the many processes you want to run [-n]
+\item \emph{a CPU} - a single core on a computer (a physical core) [-c]
+\item \emph{a job} - a set of independent processes to run
+\item \emph{to submit} - to ask Slurm to run a job
+\item \emph{to schedule} - what Slurm does to execute all your tasks
+\item \emph{array job} - an alternative way of scheduling NOT covered here
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Introduction - How it works}
+\begin{itemize}
+\item you submit a job
+\begin{itemize}
+\item your job consists of instruction how many and what processes to run
+\item you specify strict requirements: nodes nb, memory per node, time limit
+\item you specify other requirements and job hints
+\end{itemize}
+\item your jobs waits in a queue until resources (nodes) are available
+\begin{itemize}
+\item if it is rejected, it is rejected immediately
+\end{itemize}
+\item your job is scheduled
+\begin{itemize}
+\item you can get an email about it
+\item you check on the status by examining a combined output file
+\end{itemize}
+\item your job finishes or is cancelled (by you)
+\end{itemize}
+\end{frame}
+% ---------------------------------------------------------------------------- %
+
+% ############################################################################ %
+\section{Using Slurm}
+
+% ---------------------------------------------------------------------------- %
+\begin{frame}
+\frametitle{Important Commands}
+
+\underline{Slurm user commands} (you're the user, as opposed to an admin)
+\begin{itemize}
+\item \code{sinfo} - query available computational resources
+\item \code{squeue} - check status of jobs (\code{squeue --user $USER})
+\item \code{srun} - run a single process, low-level command
+\item \code{sbatch} - run a job, a job is a shell script (that calls \code{srun})
+\end{itemize}
+\vspace*{1cm}
+
+\underline{\code{module} - allows to load packages}, no \code{sudo apt} on a cluster
+\begin{itemize}
+\item \code{module avail} - available preinstalled packages 
+\item \code{module list} - currently loaded packages
+\item \code{module load package} - load \emph{package}
+\item \code{module unload package} - unload \emph{package}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Example Job Script}
+run by issuing \code{sbatch my_job.sh}
+
+\begin{tcolorbox}[size=fbox]
+\begin{minted}{bash}
+#!/bin/bash
+#SBATCH --output=out_%j.txt
+#SBATCH --time=0-10:00
+#SBATCH --mail-type=ALL
+#SBATCH --ntasks=20
+#SBATCH --cpus-per-task=2
+module load julia # load needed packages
+source environment # like a python virtualenv
+echo ""; date; echo ""
+srun -n1 -c2 python3 setup.py # 1 node, task and cpu
+wait # barrier ##########################################
+for i in {0..100}; do # 101 times, more than ntasks is OK
+  srun -n1 -c2 python3 exp.py $i & # notice &
+done # each srun ends with & to run all in the background
+wait # barrier ##########################################
+echo ""; date; echo ""
+\end{minted}
+\end{tcolorbox}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Scheduling}
+
+\begin{itemize}
+\item when you connect, you're on the login node, don't run stuff there
+\item \code{srun --pty bash} - to run a computational node interactively
+\item \code{srun -p gpu --gpus 1 --pty bash} - a gpu node interactively
+\item \tcbox[nobeforeafter, box align=base,size=fbox]{\texttt{\#SBATCH -p gpu}} in the \code{my_job.sh} file to have GPU nodes
+\item \code{tail -n 100 out_43598734.txt} to check on a job
+\end{itemize}
+\end{frame}
+% ---------------------------------------------------------------------------- %
+
+
+% ############################################################################ %
+\section{Stanford Sherlock}
+\begin{frame}
+\frametitle{Sherlock - Stanford University Cluster}
+All info at: \underline{\href{https://www.sherlock.stanford.edu}{www.sherlock.stanford.edu}}
+
+\vspace*{1cm}
+
+\begin{itemize}
+\item \code{ssh $USER@login.sherlock.stanford.edu}\\
+\item \underline{\href{https://login.sherlock.stanford.edu}{https://login.sherlock.stanford.edu}} - web-based interface
+\end{itemize}
+
+\vspace*{1cm}
+
+\underline{Comments}
+\begin{itemize}
+\item uses Slurm
+\item access via a linux shell without \code{sudo} privileges
+\item has 100s general computational nodes and $\sim$100 GPU nodes
+\item account is free, but requires Sherlock admin's and your PI's approval
+\item usage is free for research, requires publication acknowledgement
+\item can request all the nodes, but will spend time in queue
+\item simple job wait: 1 node - 10 s, 10 nodes - 5 min, 20 nodes - 1 hour
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Sherlock Storage}
+
+\underline{Storage}
+\begin{itemize}
+\item three types of storage - \emph{long}, \emph{short} and \emph{very short} term
+\item storage is very generous (a lot of GB or TB)
+\item \emph{short} and \emph{very short} storage locations are vastly faster
+\item \emph{short} storage locations have file expiration (90 days)
+\item \emph{very short} storage location is cleared on job end
+\end{itemize}
+
+\underline{Available storage locations} - these are bash variables
+\begin{itemize}
+\item \emph{long} term storage
+\begin{itemize}
+\item \code{$HOME} - personal long term storage
+\item \code{$GROUP_HOME} - shared research group storage (your lab)
+\end{itemize}
+\item \emph{short} term storage
+\begin{itemize}
+\item \code{$SCRATCH} - personal short term storage
+\item \code{$GROUP_SCRATCH} - shared research group storage (your lab)
+\end{itemize}
+\item \emph{very short} term storage - very good performance
+\begin{itemize}
+\item \code{$L_SCRATCH} - local to node
+\item \code{$L_SCRATCH_JOB} - local to node \& job
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+
+
+
+\begin{frame}[fragile]{Sherlock Tips}
+
+\underline{Persistent login}
+
+Under \code{~/.ssh/config} put
+\begin{tcolorbox}[size=fbox]
+\begin{minted}{bash}
+Host login.sherlock.stanford.edu
+    ControlMaster auto
+    ControlPath ~/.ssh/%l%r@%h:%p
+\end{minted}
+\end{tcolorbox}
+
+\underline{Multiple terminal windows at computational node}
+\begin{itemize}
+\item query what nodes are yours \code{squeue --user $USER}
+\item issue \code{ssh sh02-01n43}
+\end{itemize}
+
+\underline{Installing things}
+\begin{itemize}
+\item Sherlock does not give \code{sudo} access
+\item many installations do not \emph{really} require \code{sudo}
+\item install and use stuff from \code{~/.local/lib} \code{~/.local/bin}
+\end{itemize}
+
+\underline{Copying files back and forth}
+\begin{itemize}
+\item use \code{rsync}! excellent tutorial from Digital Ocean \href{https://www.digitalocean.com/community/tutorials/how-to-use-rsync-to-sync-local-and-remote-directories}{\underline{here}}
+\end{itemize}
+
+\end{frame}
+
+
+\end{document}
+% -----------------------------------------------------------------------------
